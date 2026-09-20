@@ -1,0 +1,10 @@
+*.log
+*.sql
+*.jsonl
+*.zip
+*.bkp*
+__pycache__/
+work/
+privado/
+.env
+referencias-privadas.json

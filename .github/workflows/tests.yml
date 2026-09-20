@@ -1,0 +1,31 @@
+name: Testes
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.0', '7.4', '8.0', '8.3', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: iconv, mysqli
+          coverage: none
+      - name: Testes de regressao
+        run: php tests/run.php
+      - name: Extrair e validar PHP embutido
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('instalar_mkauth_acento.sh').read_text()
+          php = s.split("<<'MKAUTH_PHP'\n", 1)[1].split('\nMKAUTH_PHP\n', 1)[0]
+          Path('/tmp/corretor.php').write_text(php)
+          PY
+          php -l /tmp/corretor.php
+      - name: Instalador isolado
+        run: python3 tests/installer.py
