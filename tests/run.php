@@ -118,6 +118,54 @@ foreach (array('1ª Travessa João Exemplo', '3º Andar João', 'João Ângelo',
 }
 verificar(melhor_correcao('3Âª Travessa João',0)['status']!=='CORRIGIVEL','ordinal limite zero');
 
+// R19: dados sinteticos, sem nomes ou documentos de clientes.
+function sintese_fragmentos($s, $n) {
+    return preg_replace_callback('/[^\x00-\x7f]/u', function($m) use ($n) {
+        $v = $m[0]; for ($i=0; $i<$n; $i++) $v = cp1252_c1_decode($v); return $v;
+    }, $s);
+}
+function conferir_prova($original, $result) {
+    $s = $original;
+    foreach ($result['prova_fragmentos'] as $round) {
+        $out=''; $last=0;
+        foreach ($round['edicoes'] as $e) {
+            if (substr($s,$e['offset_bytes'],strlen($e['antes']))!==$e['antes']) return false;
+            $back=$round['encoding']==='WINDOWS-1252-PRESERVE-C1' ? cp1252_c1_decode($e['depois']) : iconv($round['encoding'],'UTF-8',$e['depois']);
+            if ($back!==$e['antes']) return false;
+            $out.=substr($s,$last,$e['offset_bytes']-$last).$e['depois'];$last=$e['offset_bytes']+strlen($e['antes']);
+        }
+        $s=$out.substr($s,$last);
+    }
+    return $s===$result['texto'];
+}
+$EXPERIMENTAL_FRAGMENTOS = true;
+foreach (array('ação','Çã','ÁÉÍÓÚ','“texto” – teste','§ 1º preço € 10') as $i=>$sample) {
+    foreach(array(1,2,3,4) as $layers) {
+        $expected='João intacto: '.$sample;
+        $original='João intacto: '.sintese_fragmentos($sample,$layers);
+        $r=melhor_correcao($original,16);
+        verificar($r['status']==='CORRIGIVEL' && $r['texto']===$expected, 'fragmentos resultado '.$i.'/'.$layers);
+        verificar(isset($r['prova_fragmentos']) && conferir_prova($original,$r), 'fragmentos prova '.$i.'/'.$layers);
+        verificar(melhor_correcao($expected,16)['texto']===$expected, 'fragmentos idempotente '.$i.'/'.$layers);
+    }
+}
+$html='<p class="fixo">João <strong>'.sintese_fragmentos('ação “teste”',3).'</strong> 123,45 &amp; fim</p>';
+$r=melhor_correcao($html,16);
+verificar($r['texto']==='<p class="fixo">João <strong>ação “teste”</strong> 123,45 &amp; fim</p>', 'fragmentos HTML texto');
+$attribute='<p title="'.sintese_fragmentos('ação',2).'">João</p>';
+verificar(melhor_correcao($attribute,16)===melhor_correcao_padrao($attribute,16),'fragmentos nao altera atributo');
+foreach(array('João 日本語 😀','AÇÕES E ÓRGÃOS','3ª Travessa João','<p title="ação">João</p>') as $i=>$s) {
+    verificar(melhor_correcao($s,16)['texto']===$s,'fragmentos preservar '.$i);
+}
+foreach(array("João \xEF\xBF\xBD",'João '.sintese_fragmentos("\xEF\xBF\xBD",3),'João '.sintese_fragmentos('ação',3).' DÃƒÆ’Ã‚') as $i=>$s) {
+    verificar(melhor_correcao($s,16)['status']!=='CORRIGIVEL','fragmentos perda/truncamento '.$i);
+}
+verificar(fragmentos_recuperar('João '.sintese_fragmentos('ação',3),1)===false,'fragmentos limite profundidade');
+verificar(fragmentos_recuperar(str_repeat('x',262145),16)===false,'fragmentos limite tamanho');
+$EXPERIMENTAL_FRAGMENTOS=false;
+$s='João '.sintese_fragmentos('ação',3);
+verificar(melhor_correcao($s,16)===melhor_correcao_padrao($s,16),'fragmentos desativado padrao');
+
 $inicioChave = strpos($conteudo, 'function chave_tabela(');
 // strpos recebe a quebra real, sem depender de expressoes regulares sobre PHP.
 $fimChave = strpos($conteudo, "\n\n/*", $inicioChave);

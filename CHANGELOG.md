@@ -1,5 +1,12 @@
 # Alterações
 
+## R19 — 2026.09.24
+
+- Recuperação experimental por trechos disponível somente com `--experimental-fragments` ou opções 10/11 do menu. Desativada por padrão.
+- Conversões reversíveis, convergência entre passes, preservação de ASCII e tags HTML, limites de execução e prova dos segmentos na auditoria.
+- 533 testes PHP, mais testes de instalação e das opções do menu; nenhum dado de cliente nos testes públicos.
+- Sem dicionários de nomes/cidades ou normalização de caixa. A revisão dos candidatos continua necessária.
+
 ## R18 — 2026.09.24
 
 - Regra restrita e reversível para ordinal feminino corrompido no início de endereço simples, preservando o restante do campo. Não implementa recuperação genérica por fragmentos.

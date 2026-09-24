@@ -2,7 +2,7 @@
 # MK-AUTH - instalador unico. Nao executa analise nem UPDATE na instalacao.
 set -euo pipefail
 umask 077
-VERSAO="2026.09.24-UNIVERSAL-HEX-R18"
+VERSAO="2026.09.24-UNIVERSAL-HEX-R19"
 CORRETOR="/root/mkauth_corrige_acentos.php"
 MENU="/usr/local/sbin/mkauth-acento"
 if [ "$(id -u)" -ne 0 ]; then
@@ -119,7 +119,7 @@ umask(0077);
  * ============================================================
  */
 
-$VERSAO = '2026.09.24-UNIVERSAL-HEX-R18';
+$VERSAO = '2026.09.24-UNIVERSAL-HEX-R19';
 
 $DB_USER = 'root';
 $DB_PASS = 'vertrigo';
@@ -140,6 +140,7 @@ $INCLUDE_HISTORY =
     );
 
 $MAX_CAMADAS = 16;
+$EXPERIMENTAL_FRAGMENTOS = in_array('--experimental-fragments', $argv, true);
 
 $TS = date('Ymd-His') . '-' . getmypid();
 $OUTPUT_DIR = getenv('MKAUTH_OUTPUT_DIR') ?: '/root';
@@ -651,7 +652,89 @@ function possui_perda_irreversivel(
 
 // Regra restrita a ordinal feminino no inicio de endereco em texto simples.
 // Nao aplica recuperacao generica por fragmentos, nem transforma HTML.
+// R19: opt-in experimental; nenhum dicionario ou normalizacao de caixa.
+function fragmentos_passo($s, $encoding)
+{
+    $parts = preg_split('/([\x00-\x7f]+)/u', $s, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if ($parts === false) return false;
+    $output = ''; $edits = array(); $base = 0;
+    foreach ($parts as $part) {
+        if ($part === '' || ord($part[0]) < 128) { $output .= $part; $base += strlen($part); continue; }
+        $chars = preg_split('//u', $part, -1, PREG_SPLIT_NO_EMPTY);
+        $n = count($chars); $i = 0; $pos = $base;
+        while ($i < $n) {
+            $found = false;
+            for ($len = 2; $len <= 4 && $i + $len <= $n; $len++) {
+                $before = implode('', array_slice($chars, $i, $len));
+                $after = camada($before, $encoding);
+                if ($after === false || preg_match('/\A[^\x00-\x7f]\z/u', $after) !== 1) continue;
+                $edits[] = array('offset_bytes'=>$pos, 'antes'=>$before, 'depois'=>$after);
+                $output .= $after; $pos += strlen($before); $i += $len; $found = true; break;
+            }
+            if (!$found) { $output .= $chars[$i]; $pos += strlen($chars[$i]); $i++; }
+        }
+        $base += strlen($part);
+    }
+    // Reconstrucao independente a partir das edicoes e offsets originais.
+    $check = ''; $last = 0;
+    foreach ($edits as $e) {
+        $check .= substr($s, $last, $e['offset_bytes'] - $last) . $e['depois'];
+        $last = $e['offset_bytes'] + strlen($e['antes']);
+    }
+    $check .= substr($s, $last);
+    if ($check !== $output) return false;
+    return array('texto'=>$output, 'edicoes'=>$edits);
+}
+
+function fragmentos_recuperar($original, $max = 16)
+{
+    if ($max < 1 || strlen($original) > 262144 || !valido_utf8($original)) return false;
+    $max = min(16, $max);
+    $queue = array(array('texto'=>$original, 'prova'=>array()));
+    $seen = array(hash('sha256', $original)=>true); $terminal = array(); $bytes = 0;
+    for ($index = 0; $index < count($queue); $index++) {
+        $state = $queue[$index]; $s = $state['texto']; $advanced = false;
+        foreach (array('ISO-8859-1','WINDOWS-1252','WINDOWS-1252-PRESERVE-C1') as $enc) {
+            $bytes += strlen($s);
+            if ($bytes > 67108864) return false;
+            $step = fragmentos_passo($s, $enc);
+            if ($step === false) return false;
+            if ($step['texto'] === $s) continue;
+            $advanced = true;
+            if (count($state['prova']) >= $max) return false;
+            $key = hash('sha256', $step['texto']);
+            if (isset($seen[$key])) continue;
+            if (count($seen) >= 200) return false;
+            $seen[$key] = true;
+            $proof = $state['prova'];
+            $proof[] = array('encoding'=>$enc, 'edicoes'=>$step['edicoes']);
+            $queue[] = array('texto'=>$step['texto'], 'prova'=>$proof);
+        }
+        if (!$advanced) $terminal[hash('sha256', $s)] = $state;
+    }
+    if (count($terminal) !== 1) return false;
+    $result = reset($terminal); $new = $result['texto'];
+    if (preg_match('/[\x{00C2}\x{00C3}](?=\z|[\s<])/u', $new)) return false;
+    if ($new === $original || score_mojibake($new) !== 0 || preg_match('/[\x{0080}-\x{009F}\x{FFFD}\x{00AD}]/u', $new)) return false;
+    if (preg_replace('/[^\x00-\x7f]/', '', $new) !== preg_replace('/[^\x00-\x7f]/', '', $original)) return false;
+    preg_match_all('/<[^>]*>/', $original, $a); preg_match_all('/<[^>]*>/', $new, $b);
+    if ($a !== $b) return false;
+    return $result;
+}
+
 function melhor_correcao($original, $max = 16)
+{
+    global $EXPERIMENTAL_FRAGMENTOS;
+    $r = melhor_correcao_padrao($original, $max);
+    if (empty($EXPERIMENTAL_FRAGMENTOS) || !in_array($r['status'], array('PARCIAL','SUSPEITO'), true)) return $r;
+    $f = fragmentos_recuperar($original, $max);
+    if ($f === false) return $r;
+    return array('status'=>'CORRIGIVEL', 'texto'=>$f['texto'], 'camadas'=>count($f['prova']),
+        'score_antes'=>score_mojibake($original), 'score_depois'=>0,
+        'rota'=>'EXPERIMENTAL-FRAGMENTOS', 'prova_fragmentos'=>$f['prova']);
+}
+
+function melhor_correcao_padrao($original, $max = 16)
 {
     $r = melhor_correcao_integral($original, $max);
     if ($max < 1 || !in_array($r['status'], array('PARCIAL', 'SUSPEITO'), true)) {
@@ -1430,6 +1513,8 @@ logmsg(
     )
 );
 
+logmsg('Fragmentos.........: ' . ($EXPERIMENTAL_FRAGMENTOS ? 'EXPERIMENTAL ATIVADO' : 'DESATIVADO'));
+
 logmsg(
     'Maximo de camadas..: ' .
     $MAX_CAMADAS
@@ -1784,7 +1869,8 @@ while (
                     'chave' => $chaveAuditada,
                     'original_hex' => $row['__mkauth_original_hex'],
                     'antes' => $original, 'depois' => $analise['texto'],
-                    'camadas' => $analise['camadas'], 'rota' => $analise['rota']
+                    'camadas' => $analise['camadas'], 'rota' => $analise['rota'],
+                    'prova_fragmentos' => isset($analise['prova_fragmentos']) ? $analise['prova_fragmentos'] : array()
                 ));
 
                 $alteracoes[] =
@@ -2662,6 +2748,9 @@ do
     echo
     echo "  9 - Mostrar casos preservados"
     echo
+    echo "  10 - Analisar com recuperacao experimental por trechos"
+    echo "  11 - Aplicar com recuperacao experimental por trechos"
+    echo
     echo "  0 - Sair"
     echo
     echo "------------------------------------------------------------"
@@ -3013,6 +3102,17 @@ do
             ;;
 
 
+        10)
+            executar --experimental-fragments
+            ;;
+        11)
+            echo "Revise TODOS os candidatos da opcao 10 antes de aplicar."
+            echo "Modo experimental: cria backup; nao garante recuperar todos os casos."
+            read -rp "Digite APLICAR EXPERIMENTAL para continuar: " CONFIRMA || exit 0
+            if [ "$CONFIRMA" = "APLICAR EXPERIMENTAL" ]; then
+                executar --experimental-fragments --apply
+            fi
+            ;;
         0)
 
             clear
@@ -3039,7 +3139,7 @@ MKAUTH_MENU
 "$PHP_BIN" -l "$STAGE/corretor.php"
 bash -n "$STAGE/menu.sh"
 grep -q '__mkauth_original_hex' "$STAGE/corretor.php"
-grep -q 'UNIVERSAL-HEX-R18' "$STAGE/corretor.php"
+grep -q 'UNIVERSAL-HEX-R19' "$STAGE/corretor.php"
 TS="$(date +%Y%m%d-%H%M%S)-$$"
 # Ambas as copias sao validadas ANTES de substituir arquivos instalados.
 # Falha em qualquer backup interrompe a instalacao.
@@ -3051,7 +3151,7 @@ for ALVO in "$CORRETOR" "$MENU"; do
 done
 install -m 700 "$STAGE/corretor.php" "$CORRETOR"
 install -m 755 "$STAGE/menu.sh" "$MENU"
-echo "Instalado: $VERSAO (R18)"
+echo "Instalado: $VERSAO (R19)"
 echo "PHP: $PHP_BIN"
 echo "Use: mkauth-acento -> 1 (somente analisar)."
 echo "Revise o resumo e TODOS os CORRIGIVEL antes de qualquer --apply."

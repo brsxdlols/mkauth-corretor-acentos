@@ -1,8 +1,8 @@
-# MK-AUTH — corretor de acentuação R18
+# MK-AUTH — corretor de acentuação R19
 
 Instalador único `instalar_mkauth_acento.sh`, com corretor PHP e menu `mkauth-acento` embutidos. Não precisa de patch Python. A instalação **não executa o corretor**.
 
-Versão do algoritmo: `2026.09.24-UNIVERSAL-HEX-R18`.
+Versão do algoritmo: `2026.09.24-UNIVERSAL-HEX-R19`.
 
 O algoritmo tenta desfazer recodificações completas entre UTF-8, ISO-8859-1 e Windows-1252. A R17 acrescenta o perfil explícito `WINDOWS-1252-PRESERVE-C1`: os cinco bytes indefinidos `81`, `8D`, `8F`, `90` e `9D` são representados pelos controles Unicode correspondentes. A representação é bijetiva e cada camada precisa reconstruir exatamente a entrada; não se usam descarte de bytes ou transliteração. Limites: **16 camadas**, `BEAM_WIDTH=6`, `TOLERANCIA=120`, `MAX_SEM_MELHORA=4`.
 
@@ -52,11 +52,23 @@ Os históricos `sis_enviadas`, `sis_logs`, `sis_ativ`, `sis_gnettits` e `sis_msg
 
 O escopo herdado descobre colunas de texto de todas as tabelas elegíveis; isso pode incluir identificadores e conteúdo de addons. Revise o significado de cada campo: um resultado ortograficamente plausível não garante que seja adequado para um login, token, modelo de documento ou outro campo técnico.
 
+## Recuperação experimental por trechos (R19)
+
+A R19 inclui a técnica adicional como opção explícita. As opções 1–4 mantêm o comportamento anterior. No menu, use **10 — Analisar com recuperação experimental por trechos**; revise TODOS os candidatos e o JSONL completo; só depois use **11 — Aplicar com recuperação experimental por trechos**. A opção 11 exige digitar `APLICAR EXPERIMENTAL`.
+
+Na CLI, a análise usa `php /root/mkauth_corrige_acentos.php --experimental-fragments`. Adicionar `--apply` aplica os candidatos após nova análise, com as mesmas salvaguardas e limitações de backup do modo padrão. Não existe aprovação vinculada a um manifesto imutável nessa CLI.
+
+O modo adicional tenta reverter sequências UTF-8 completas dentro dos trechos corrompidos, somente quando o método padrão preservaria o campo. Exige convergência dos passes explorados, score zero, preservação de ASCII e tags HTML, e conversões individuais com ida e volta exata. A auditoria registra a rota `EXPERIMENTAL-FRAGMENTOS` e `prova_fragmentos` com offsets em bytes relativos à entrada de cada rodada. Mantém letras maiúsculas/minúsculas; não deduz grafias de nomes, cidades ou caracteres perdidos.
+
+Limites adicionais: 16 rodadas, 200 estados, 256 KiB por campo e 64 MiB de processamento acumulado. Se houver divergência, limite excedido, alteração de tag HTML ou marcador de perda, mantém o resultado do método padrão. Alguns truncamentos não são identificáveis com certeza; reversibilidade não prova a intenção original. A revisão continua obrigatória, sobretudo em nomes, documentos e campos técnicos. A busca explora passes por perfil, não todas as segmentações possíveis.
+
+A implementação reproduziu em teste privado as cinco recuperações previamente revisadas. Os testes públicos usam somente textos sintéticos; nenhum dado pessoal ou substituição específica de cadastro faz parte do instalador.
+
 ## Limites e evolução
 
 Não existe garantia de recuperação de 100% dos textos nem de ausência de falsos positivos. Score zero é uma heurística, não uma prova do nome original. Uma sequência que parece mojibake pode ter sido digitada literalmente. Truncamentos e bytes perdidos não podem ser preenchidos por suposição.
 
-**A recuperação híbrida genérica por trechos continua fora do universal.** A R18 acrescenta somente uma regra restrita para ordinal feminino no início de endereço simples: por exemplo, `3Âª Travessa João Exemplo` → `3ª Travessa João Exemplo`. Aceita números de 1 a 999, seguidos de Travessa, Rua, Avenida ou Alameda, com essa capitalização. Preserva o restante byte a byte; exige reconstrução exata e score final zero. HTML, quebras de linha, outros contextos e sufixos com `Ã`/`Â` não recebem essa regra adicional. A conversão integral existente permanece disponível nesses casos.
+**O modo padrão mantém a recuperação por trechos desativada.** A R18 acrescenta somente uma regra restrita para ordinal feminino no início de endereço simples: por exemplo, `3Âª Travessa João Exemplo` → `3ª Travessa João Exemplo`. Aceita números de 1 a 999, seguidos de Travessa, Rua, Avenida ou Alameda, com essa capitalização. Preserva o restante byte a byte; exige reconstrução exata e score final zero. HTML, quebras de linha, outros contextos e sufixos com `Ã`/`Â` não recebem essa regra adicional. A conversão integral existente permanece disponível nesses casos.
 
 A rota aparece na auditoria como `ORDINAL-ENDERECO-INICIAL:ISO-8859-1`. Ela continua exigindo revisão humana: o contexto textual não prova por si só que a sequência não foi digitada literalmente. Não há dicionário de cidades ou nomes, e as correções documentais específicas dos servidores permanecem privadas.
 

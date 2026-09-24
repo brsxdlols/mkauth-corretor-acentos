@@ -15,7 +15,7 @@ assert '$MAX_CAMADAS = 16;' in php
 assert '$BEAM_WIDTH = 6;' in php
 assert '$TOLERANCIA = 120;' in php
 assert '$MAX_SEM_MELHORA = 4;' in php
-assert "'2026.09.24-UNIVERSAL-HEX-R18'" in php
+assert "'2026.09.24-UNIVERSAL-HEX-R19'" in php
 assert '\r' not in text
 
 with tempfile.TemporaryDirectory(prefix='mkauth-test-') as tmp:
@@ -73,4 +73,23 @@ if [ "${FAIL_BACKUP:-0}" = 1 ]; then exit 1; fi
     assert any(p.read_text() == 'CORRETOR ANTERIOR' for p in root.glob('*.bkp-*'))
     assert any(p.read_text() == 'MENU ANTERIOR' for p in sbin.glob('*.bkp-*'))
     assert not list(root.glob('.mkauth-acento-install.*'))
-print('OK: sintaxe Bash, parametros R18, falha de lint, falha de backup, instalacao e backups.')
+    # Exercita as opcoes reais do menu com PHP simulado, sem banco.
+    (fake / 'php').write_text('#!/bin/bash\ncase "$1" in\n-r) exit 0 ;;\n-v) echo \'PHP simulado\'; exit 0 ;;\nesac\nprintf \'%s\\n\' "$*" >> "$MENU_CALLS"\n', encoding='utf-8', newline='\n')
+    (fake / 'clear').write_text('#!/bin/bash\nexit 0\n', encoding='utf-8')
+    (fake / 'clear').chmod(0o755)
+    calls = base / 'calls.txt'
+    for inputs, expected in [('1\n\n0\n', ''), ('10\n\n0\n', '--experimental-fragments'),
+                              ('11\nCANCELAR\n0\n', None),
+                              ('11\nAPLICAR EXPERIMENTAL\n\n0\n', '--experimental-fragments --apply')]:
+        calls.write_text('')
+        env = os.environ.copy(); env['MENU_CALLS'] = calls.as_posix()
+        r = subprocess.run([bash, '-c', 'export PATH="$(cygpath -u "$1" 2>/dev/null || printf %s "$1"):$PATH"; bash "$2"',
+                            'menu', fake.as_posix(), target_menu.as_posix()], input=inputs.encode(),
+                           env=env, capture_output=True, timeout=20)
+        assert r.returncode == 0, r.stdout + r.stderr
+        lines = calls.read_text().splitlines()
+        if expected is None: assert not lines
+        else:
+            assert len(lines) == 1, (expected, lines, r.stdout, r.stderr)
+            assert lines[0].endswith('mkauth_corrige_acentos.php' + (' ' + expected if expected else ''))
+print('OK: sintaxe Bash, parametros R19, falha de lint, falha de backup, instalacao e backups.')
