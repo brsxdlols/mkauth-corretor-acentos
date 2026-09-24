@@ -1,5 +1,12 @@
 # Alterações
 
+## R17 — 2026.09.24
+
+- Nova rota integral e reversível `WINDOWS-1252-PRESERVE-C1`, preservando os cinco bytes indefinidos do CP1252 como controles Unicode correspondentes. Todos os 256 valores têm teste de ida e volta.
+- Corrigida a detecção de prefixos `Ã`/`Â` seguidos de símbolos CP1252, evitando encerrar a busca em um falso score zero, como em `Ã“`.
+- 400 testes: casos anteriores, cobertura dos 256 bytes, letras maiúsculas acentuadas, até 16 camadas, rejeição de truncamento e preservação de textos multilíngues.
+- Sem dicionário de nomes, sem preenchimento de texto perdido e sem recuperação híbrida por trechos.
+
 ## R16 — empacotamento 1
 
 - Instalador único com corretor e menu, sem executar o programa ao instalar.

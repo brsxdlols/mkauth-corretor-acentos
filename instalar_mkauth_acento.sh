@@ -2,7 +2,7 @@
 # MK-AUTH - instalador unico. Nao executa analise nem UPDATE na instalacao.
 set -euo pipefail
 umask 077
-VERSAO="2026.08.17-UNIVERSAL-HEX-R16"
+VERSAO="2026.09.24-UNIVERSAL-HEX-R17"
 CORRETOR="/root/mkauth_corrige_acentos.php"
 MENU="/usr/local/sbin/mkauth-acento"
 if [ "$(id -u)" -ne 0 ]; then
@@ -119,7 +119,7 @@ umask(0077);
  * ============================================================
  */
 
-$VERSAO = '2026.08.17-UNIVERSAL-HEX-R16';
+$VERSAO = '2026.09.24-UNIVERSAL-HEX-R17';
 
 $DB_USER = 'root';
 $DB_PASS = 'vertrigo';
@@ -293,8 +293,55 @@ function resumo($s, $limite = 300)
  * ============================================================
  */
 
+// Perfil reversivel explicito: CP1252 com os cinco bytes indefinidos
+// 81, 8D, 8F, 90 e 9D preservados como controles Unicode correspondentes.
+// Nao mistura encodings por trecho, nao remove bytes e nao translitera.
+function cp1252_c1_decode($bytes)
+{
+    $out = '';
+    foreach (str_split($bytes) as $byte) {
+        $n = ord($byte);
+        if (in_array($n, array(0x81, 0x8D, 0x8F, 0x90, 0x9D), true)) {
+            $out .= "\xC2" . $byte;
+        } else {
+            $c = @iconv('WINDOWS-1252', 'UTF-8', $byte);
+            if ($c === false) return false;
+            $out .= $c;
+        }
+    }
+    return $out;
+}
+
+function cp1252_c1_encode($s)
+{
+    static $map = null;
+    if (!valido_utf8($s)) return false;
+    if ($map === null) {
+        $map = array();
+        for ($n = 0; $n < 256; $n++) {
+            $c = cp1252_c1_decode(chr($n));
+            if ($c === false || isset($map[$c])) return false;
+            $map[$c] = chr($n);
+        }
+    }
+    $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY);
+    if ($chars === false) return false;
+    $bytes = '';
+    foreach ($chars as $c) {
+        if (!array_key_exists($c, $map)) return false;
+        $bytes .= $map[$c];
+    }
+    if (cp1252_c1_decode($bytes) !== $s) return false;
+    return $bytes;
+}
+
 function camada($s, $encoding)
 {
+    if ($encoding === 'WINDOWS-1252-PRESERVE-C1') {
+        $bytes = cp1252_c1_encode($s);
+        return $bytes !== false && valido_utf8($bytes) ? $bytes : false;
+    }
+
     $bytes =
         @iconv(
             'UTF-8',
@@ -414,6 +461,11 @@ function score_mojibake($s)
      * Padroes comuns de mojibake.
      */
     $patterns = array(
+
+        // Bytes 80-9F exibidos como simbolos CP1252 apos um prefixo UTF8.
+        // Evita encerrar em falso score zero, por exemplo C3 93 -> "Ã“".
+        '/[\x{00C2}\x{00C3}][\x{20AC}\x{201A}\x{0192}\x{201E}\x{2026}\x{2020}\x{2021}\x{02C6}\x{2030}\x{0160}\x{2039}\x{0152}\x{017D}\x{2018}\x{2019}\x{201C}\x{201D}\x{2022}\x{2013}\x{2014}\x{02DC}\x{2122}\x{0161}\x{203A}\x{0153}\x{017E}\x{0178}]/u'
+            => 40,
 
         '/\x{00C3}[\x{0080}-\x{00BF}]/u'
             => 40,
@@ -558,7 +610,8 @@ function possui_perda_irreversivel(
         foreach (
             array(
                 'ISO-8859-1',
-                'WINDOWS-1252'
+                'WINDOWS-1252',
+                'WINDOWS-1252-PRESERVE-C1'
             )
             as $enc
         ) {
@@ -780,7 +833,8 @@ function melhor_correcao(
             foreach (
                 array(
                     'ISO-8859-1',
-                    'WINDOWS-1252'
+                    'WINDOWS-1252',
+                'WINDOWS-1252-PRESERVE-C1'
                 )
                 as $enc
             ) {
@@ -2963,7 +3017,7 @@ MKAUTH_MENU
 "$PHP_BIN" -l "$STAGE/corretor.php"
 bash -n "$STAGE/menu.sh"
 grep -q '__mkauth_original_hex' "$STAGE/corretor.php"
-grep -q 'UNIVERSAL-HEX-R16' "$STAGE/corretor.php"
+grep -q 'UNIVERSAL-HEX-R17' "$STAGE/corretor.php"
 TS="$(date +%Y%m%d-%H%M%S)-$$"
 # Ambas as copias sao validadas ANTES de substituir arquivos instalados.
 # Falha em qualquer backup interrompe a instalacao.
@@ -2975,7 +3029,7 @@ for ALVO in "$CORRETOR" "$MENU"; do
 done
 install -m 700 "$STAGE/corretor.php" "$CORRETOR"
 install -m 755 "$STAGE/menu.sh" "$MENU"
-echo "Instalado: $VERSAO (empacotamento 1)"
+echo "Instalado: $VERSAO (R17)"
 echo "PHP: $PHP_BIN"
 echo "Use: mkauth-acento -> 1 (somente analisar)."
 echo "Revise o resumo e TODOS os CORRIGIVEL antes de qualquer --apply."

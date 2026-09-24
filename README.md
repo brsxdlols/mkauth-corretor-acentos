@@ -1,10 +1,10 @@
-# MK-AUTH — corretor de acentuação R16
+# MK-AUTH — corretor de acentuação R17
 
 Instalador único `instalar_mkauth_acento.sh`, com corretor PHP e menu `mkauth-acento` embutidos. Não precisa de patch Python. A instalação **não executa o corretor**.
 
-Versão do algoritmo: `2026.08.17-UNIVERSAL-HEX-R16`. Empacotamento: **1**.
+Versão do algoritmo: `2026.09.24-UNIVERSAL-HEX-R17`.
 
-O algoritmo tenta desfazer recodificações completas entre UTF-8, ISO-8859-1 e Windows-1252. Limites: **16 camadas**, `BEAM_WIDTH=6`, `TOLERANCIA=120`, `MAX_SEM_MELHORA=4`.
+O algoritmo tenta desfazer recodificações completas entre UTF-8, ISO-8859-1 e Windows-1252. A R17 acrescenta o perfil explícito `WINDOWS-1252-PRESERVE-C1`: os cinco bytes indefinidos `81`, `8D`, `8F`, `90` e `9D` são representados pelos controles Unicode correspondentes. A representação é bijetiva e cada camada precisa reconstruir exatamente a entrada; não se usam descarte de bytes ou transliteração. Limites: **16 camadas**, `BEAM_WIDTH=6`, `TOLERANCIA=120`, `MAX_SEM_MELHORA=4`.
 
 ## Instalar e analisar
 
@@ -56,7 +56,7 @@ O escopo herdado descobre colunas de texto de todas as tabelas elegíveis; isso 
 
 Não existe garantia de recuperação de 100% dos textos nem de ausência de falsos positivos. Score zero é uma heurística, não uma prova do nome original. Uma sequência que parece mojibake pode ter sido digitada literalmente. Truncamentos e bytes perdidos não podem ser preenchidos por suposição.
 
-**A recuperação híbrida experimental não está incluída.** Textos que misturam trechos corretos e recodificados podem permanecer suspeitos, como `3Âª Travessa João Exemplo`. Essa limitação é intencional nesta versão.
+**A recuperação híbrida experimental por trechos não está incluída.** O perfil C1 é aplicado ao campo inteiro, como as outras codificações. Textos que misturam trechos corretos e recodificados podem permanecer suspeitos, como `3Âª Travessa João Exemplo`. Essa limitação é intencional nesta versão. As substituições históricas específicas do Visual Net também permanecem fora do universal.
 
 Referências de chamados, mensagens e cadastros podem ajudar uma restauração individual, mas devem ficar em uma base privada com tabela, campo, identificador, data e conflitos. Login pode ser reutilizado e nome pode mudar; uma referência única também exige revisão. Nunca transforme uma associação de cliente em uma substituição universal de nomes.
 
@@ -77,4 +77,4 @@ python3 tests/installer.py
 
 Os testes PHP carregam somente as funções, sem abrir conexão com banco. O teste do instalador usa diretórios temporários e simula PHP para verificar falhas de lint/backup, backups anteriores e instalação; a sintaxe PHP real é verificada separadamente no CI.
 
-Veja [CHANGELOG.md](CHANGELOG.md) para diferenças em relação à R16 instalada anteriormente.
+Veja [CHANGELOG.md](CHANGELOG.md) para as diferenças entre versões.

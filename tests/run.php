@@ -77,6 +77,28 @@ foreach ($preservados as $i => $texto) {
 verificar(camada('João', 'ISO-8859-1') === false, 'nao reinterpretar UTF8 correto');
 $r = melhor_correcao(corromper('João', 'ISO-8859-1', 9), 8);
 verificar($r['status'] !== 'CORRIGIVEL', 'respeitar limite de camadas');
+// R17: perfil total de 256 bytes, sem transliteracao ou descarte.
+for ($byte = 0; $byte < 256; $byte++) {
+    $decoded = cp1252_c1_decode(chr($byte));
+    verificar($decoded !== false && cp1252_c1_encode($decoded) === chr($byte), 'roundtrip byte ' . $byte);
+}
+foreach (array('Árvore', 'Índice', 'Óleo', 'Único', 'ÁÉÍÓÚ ÀÂÃÇ') as $i => $texto) {
+    verificar(melhor_correcao($texto, 16)['texto'] === $texto, 'preservar correto R17 ' . $i);
+    foreach (array(1, 2, 4, 8) as $n) {
+        $entrada = $texto;
+        for ($j = 0; $j < $n; $j++) $entrada = cp1252_c1_decode($entrada);
+        $r = melhor_correcao($entrada, 16);
+        verificar($r['status'] === 'CORRIGIVEL' && $r['texto'] === $texto, 'C1 texto ' . $i . ' camadas ' . $n);
+    }
+}
+$entrada = 'Á';
+for ($j = 0; $j < 16; $j++) $entrada = cp1252_c1_decode($entrada);
+$r = melhor_correcao($entrada, 16);
+verificar($r['status'] === 'CORRIGIVEL' && $r['texto'] === 'Á', 'C1 dezesseis camadas');
+verificar(cp1252_c1_encode("\xC2\x80") === false, 'nao aceitar C1 definido como Latin1');
+verificar(cp1252_c1_encode('Ω') === false, 'nao transliterar grego');
+verificar(camada("\xC3\x83", 'WINDOWS-1252-PRESERVE-C1') === false, 'nao completar UTF8 truncado');
+verificar(melhor_correcao('Árvore João 日本語 😀', 16)['status'] === 'OK', 'preservar texto multilíngue');
 $inicioChave = strpos($conteudo, 'function chave_tabela(');
 // strpos recebe a quebra real, sem depender de expressoes regulares sobre PHP.
 $fimChave = strpos($conteudo, "\n\n/*", $inicioChave);

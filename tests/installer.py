@@ -15,7 +15,7 @@ assert '$MAX_CAMADAS = 16;' in php
 assert '$BEAM_WIDTH = 6;' in php
 assert '$TOLERANCIA = 120;' in php
 assert '$MAX_SEM_MELHORA = 4;' in php
-assert "'2026.08.17-UNIVERSAL-HEX-R16'" in php
+assert "'2026.09.24-UNIVERSAL-HEX-R17'" in php
 assert '\r' not in text
 
 with tempfile.TemporaryDirectory(prefix='mkauth-test-') as tmp:
@@ -73,4 +73,4 @@ if [ "${FAIL_BACKUP:-0}" = 1 ]; then exit 1; fi
     assert any(p.read_text() == 'CORRETOR ANTERIOR' for p in root.glob('*.bkp-*'))
     assert any(p.read_text() == 'MENU ANTERIOR' for p in sbin.glob('*.bkp-*'))
     assert not list(root.glob('.mkauth-acento-install.*'))
-print('OK: sintaxe Bash, parametros R16, falha de lint, falha de backup, instalacao e backups.')
+print('OK: sintaxe Bash, parametros R17, falha de lint, falha de backup, instalacao e backups.')
