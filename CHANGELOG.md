@@ -1,5 +1,12 @@
 # Alterações
 
+## R18 — 2026.09.24
+
+- Regra restrita e reversível para ordinal feminino corrompido no início de endereço simples, preservando o restante do campo. Não implementa recuperação genérica por fragmentos.
+- Apenas números de 1 a 999 e contextos Travessa, Rua, Avenida e Alameda; exige score final zero e revisão dos candidatos.
+- 461 testes, incluindo limites de contexto, HTML, idempotência e preservação do comportamento integral anterior.
+- Nenhuma substituição específica de cidade, nome ou cliente incorporada.
+
 ## R17 — 2026.09.24
 
 - Nova rota integral e reversível `WINDOWS-1252-PRESERVE-C1`, preservando os cinco bytes indefinidos do CP1252 como controles Unicode correspondentes. Todos os 256 valores têm teste de ida e volta.

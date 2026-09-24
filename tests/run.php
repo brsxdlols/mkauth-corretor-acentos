@@ -61,8 +61,6 @@ foreach (array("Teste \xEF\xBF\xBD", corromper("Teste \xEF\xBF\xBD", 'ISO-8859-1
     verificar($r['status'] === 'IRRECUPERAVEL' && $r['texto'] === $texto, 'perda preservada ' . $i);
 }
 $preservados = array(
-    '3Âª Travessa João Exemplo',
-    '1Âª Travessa João Exemplo',
     'Rua Exemplo DÃƒÆ’Ã‚',
     'Pessoa ÃƒÆ’Ã‚Âurea Exemplo',
     'CAMAÃƒÆ’ââ‚¬Â¡ARI',
@@ -99,6 +97,27 @@ verificar(cp1252_c1_encode("\xC2\x80") === false, 'nao aceitar C1 definido como 
 verificar(cp1252_c1_encode('Ω') === false, 'nao transliterar grego');
 verificar(camada("\xC3\x83", 'WINDOWS-1252-PRESERVE-C1') === false, 'nao completar UTF8 truncado');
 verificar(melhor_correcao('Árvore João 日本語 😀', 16)['status'] === 'OK', 'preservar texto multilíngue');
+
+// R18: contexto estrito, resto preservado e idempotencia.
+foreach (array('1','3','21','999') as $n) {
+    foreach (array('Travessa','Rua','Avenida','Alameda') as $via) {
+        $original = $n . 'Âª ' . $via . ' João Exemplo';
+        $esperado = $n . 'ª ' . $via . ' João Exemplo';
+        $r = melhor_correcao($original, 16);
+        verificar($r['status']==='CORRIGIVEL' && $r['texto']===$esperado, 'ordinal ' . $n . $via);
+        verificar($r['rota']==='ORDINAL-ENDERECO-INICIAL:ISO-8859-1', 'rota ordinal ' . $n . $via);
+        verificar(melhor_correcao($esperado,16)['status']==='OK', 'ordinal idempotente ' . $n . $via);
+    }
+}
+foreach (array('1ª Travessa João Exemplo', '3º Andar João', 'João Ângelo', 'Texto literal Âª',
+    '<p>3Âª Travessa João Exemplo</p>', 'login=3Âª Travessa João', '0Âª Travessa João',
+    '1000Âª Travessa João', '3Âª Andar João', '3Âª Travessa João Ã',
+    "3Âª Travessa João\n", '3Âª Travessa João / rota', '3Âª Travessa João 😀',
+    "3Âª Travessa João\xEF\xBF\xBD") as $i=>$s) {
+    verificar(melhor_correcao($s,16)===melhor_correcao_integral($s,16), 'ordinal fora de escopo ' . $i);
+}
+verificar(melhor_correcao('3Âª Travessa João',0)['status']!=='CORRIGIVEL','ordinal limite zero');
+
 $inicioChave = strpos($conteudo, 'function chave_tabela(');
 // strpos recebe a quebra real, sem depender de expressoes regulares sobre PHP.
 $fimChave = strpos($conteudo, "\n\n/*", $inicioChave);

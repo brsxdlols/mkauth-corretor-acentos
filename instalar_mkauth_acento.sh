@@ -2,7 +2,7 @@
 # MK-AUTH - instalador unico. Nao executa analise nem UPDATE na instalacao.
 set -euo pipefail
 umask 077
-VERSAO="2026.09.24-UNIVERSAL-HEX-R17"
+VERSAO="2026.09.24-UNIVERSAL-HEX-R18"
 CORRETOR="/root/mkauth_corrige_acentos.php"
 MENU="/usr/local/sbin/mkauth-acento"
 if [ "$(id -u)" -ne 0 ]; then
@@ -119,7 +119,7 @@ umask(0077);
  * ============================================================
  */
 
-$VERSAO = '2026.09.24-UNIVERSAL-HEX-R17';
+$VERSAO = '2026.09.24-UNIVERSAL-HEX-R18';
 
 $DB_USER = 'root';
 $DB_PASS = 'vertrigo';
@@ -649,7 +649,29 @@ function possui_perda_irreversivel(
  * ============================================================
  */
 
-function melhor_correcao(
+// Regra restrita a ordinal feminino no inicio de endereco em texto simples.
+// Nao aplica recuperacao generica por fragmentos, nem transforma HTML.
+function melhor_correcao($original, $max = 16)
+{
+    $r = melhor_correcao_integral($original, $max);
+    if ($max < 1 || !in_array($r['status'], array('PARCIAL', 'SUSPEITO'), true)) {
+        return $r;
+    }
+    $pattern = '/\A([1-9][0-9]{0,2})(\x{00C2}\x{00AA})( (?:Travessa|Rua|Avenida|Alameda) [\p{L}\p{M}\p{N} .,\x{0027}-]+)\z/u';
+    if (preg_match($pattern, $original, $m) !== 1) return $r;
+    if (preg_match('/[\x{00C2}\x{00C3}]/u', $m[3])) return $r;
+    $ordinal = camada($m[2], 'ISO-8859-1');
+    if ($ordinal !== "\xC2\xAA") return $r;
+    $novo = $m[1] . $ordinal . $m[3];
+    // Reconstrucao exata usando o fragmento e o contexto capturados.
+    if ($m[1] . iconv('ISO-8859-1', 'UTF-8', $ordinal) . $m[3] !== $original) return $r;
+    if (score_mojibake($novo) !== 0) return $r;
+    return array('status'=>'CORRIGIVEL', 'texto'=>$novo, 'camadas'=>1,
+        'score_antes'=>score_mojibake($original), 'score_depois'=>0,
+        'rota'=>'ORDINAL-ENDERECO-INICIAL:ISO-8859-1');
+}
+
+function melhor_correcao_integral(
     $original,
     $max = 16
 ) {
@@ -3017,7 +3039,7 @@ MKAUTH_MENU
 "$PHP_BIN" -l "$STAGE/corretor.php"
 bash -n "$STAGE/menu.sh"
 grep -q '__mkauth_original_hex' "$STAGE/corretor.php"
-grep -q 'UNIVERSAL-HEX-R17' "$STAGE/corretor.php"
+grep -q 'UNIVERSAL-HEX-R18' "$STAGE/corretor.php"
 TS="$(date +%Y%m%d-%H%M%S)-$$"
 # Ambas as copias sao validadas ANTES de substituir arquivos instalados.
 # Falha em qualquer backup interrompe a instalacao.
@@ -3029,7 +3051,7 @@ for ALVO in "$CORRETOR" "$MENU"; do
 done
 install -m 700 "$STAGE/corretor.php" "$CORRETOR"
 install -m 755 "$STAGE/menu.sh" "$MENU"
-echo "Instalado: $VERSAO (R17)"
+echo "Instalado: $VERSAO (R18)"
 echo "PHP: $PHP_BIN"
 echo "Use: mkauth-acento -> 1 (somente analisar)."
 echo "Revise o resumo e TODOS os CORRIGIVEL antes de qualquer --apply."
