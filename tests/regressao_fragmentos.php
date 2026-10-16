@@ -51,5 +51,50 @@ check_case('aceita caracteres portugueses comuns', preg_match('/[\\x{00C3}\\x{00
 check_case('nao classifica perda U+FFFD como corrigivel', melhor_correcao('PRESTA��O')['status'] !== 'CORRIGIVEL');
 check_case('nao classifica perda latin1 como corrigivel', melhor_correcao('PRESTAï¿½ï¿½O')['status'] !== 'CORRIGIVEL');
 check_case('funcao experimental presente', function_exists('fragmentos_recuperar'));
+
+// Testes sinteticos de 1 a 7 camadas: sem usar dados de clientes.
+// A propriedade de seguranca e: se disser CORRIGIVEL, precisa recuperar
+// exatamente a string original, sem alteracao de pontuacao ou de HTML.
+$originais = array(
+    'Rua São Paulo',
+    'Consultório',
+    'Gregório Magnani',
+    'Conexão 24 horas na fibra',
+    'Ação e manutenção',
+    'Observação: não utiliza linha telefônica',
+    '<b>Conexão</b> 24 horas'
+);
+$camadasTestadas = 0;
+$correcoesExatas = 0;
+$preservados = 0;
+foreach ($originais as $original) {
+    $corrompido = $original;
+    for ($nivel = 1; $nivel <= 7; $nivel++) {
+        // Simula bytes UTF-8 interpretados incorretamente como Latin1.
+        $proximo = @iconv('ISO-8859-1', 'UTF-8', $corrompido);
+        if ($proximo === false || $proximo === $corrompido) break;
+        $corrompido = $proximo;
+        $r = melhor_correcao($corrompido, 16);
+        $camadasTestadas++;
+        $corrigivel = $r['status'] === 'CORRIGIVEL';
+        if ($corrigivel) $correcoesExatas++;
+        else $preservados++;
+        check_case(
+            'roundtrip ' . $nivel . ' camada(s): ' . $original,
+            !$corrigivel || $r['texto'] === $original
+        );
+    }
+}
+echo "COBERTURA: $camadasTestadas casos; $correcoesExatas correcoes declaradas; $preservados preservados.\n";
+
+// Nunca promover texto com perda de bytes ao estado corrigivel.
+foreach (array(
+    'PRESTA��O', 'PRESTAï¿½ï¿½O', 'Contrato �', 'Rua �',
+    'JosÃÃÃâ', 'MÃÃÆ', 'Jardim SÃÃÆ', 'PrÃÃÃâ'
+) as $suspeito) {
+    $r = melhor_correcao($suspeito, 16);
+    check_case('nao promove perda/residuo: ' . $suspeito, $r['status'] !== 'CORRIGIVEL');
+}
+
 echo "RESULTADO: " . ($tests - $failed) . "/$tests\\n";
 exit($failed ? 1 : 0);
