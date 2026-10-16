@@ -92,7 +92,7 @@ def autoteste():
     assert classificar(dict(reg, depois="SÃ£o")) == "prova_falha_destino_divergente"
     ruim = dict(reg, prova_fragmentos=[{"edicoes": [{"offset_bytes": 2, "antes": "Ã£", "depois": "ã"}]}])
     assert classificar(ruim) == "prova_falha_fragmento_nao_confere"
-    assert classificar(dict(reg, depois="São!", prova_fragmentos=[
+    assert classificar(dict(reg, depois="Sã!o", prova_fragmentos=[
         {"edicoes": [{"offset_bytes": 1, "antes": "Ã£", "depois": "ã!"}]}])) == "ascii_alterado"
     assert classificar(dict(reg, depois="SÃ£o", prova_fragmentos=[
         {"edicoes": [{"offset_bytes": 1, "antes": "Ã£", "depois": "Ã£"}]}])) == "residuos"
