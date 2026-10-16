@@ -727,7 +727,7 @@ function fragmentos_recuperar($original, $max = 16)
     // Hardening experimental: score zero nao garante texto legivel.
     // Filtro conservador: falsos positivos sao preservados, nunca aplicados.
     // Estes marcadores foram observados em 491/508 candidatos da auditoria.
-    if (preg_match('/[\\x{00C3}\\x{00C2}\\x{00C6}]/u', $new) ||
+    if (preg_match('/[\x{00C3}\x{00C2}\x{00C6}]/u', $new) ||
         strpos($new, "â€") !== false ||
         strpos($new, "â‚") !== false ||
         strpos($new, "ï¿½") !== false) return false;
