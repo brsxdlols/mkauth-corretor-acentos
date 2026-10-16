@@ -142,6 +142,14 @@ $INCLUDE_HISTORY =
 $MAX_CAMADAS = 16;
 $EXPERIMENTAL_FRAGMENTOS = in_array('--experimental-fragments', $argv, true);
 
+// Trava de seguranca: analise experimental permitida, aplicacao bloqueada
+// ate validacao da recuperacao por fragmentos em testes de regressao.
+if ($EXPERIMENTAL_FRAGMENTOS && $APPLY) {
+    fwrite(STDERR, "BLOQUEADO: aplicacao experimental desabilitada nesta branch de desenvolvimento. Nenhum UPDATE executado.\\n");
+    exit(3);
+}
+
+
 $TS = date('Ymd-His') . '-' . getmypid();
 $OUTPUT_DIR = getenv('MKAUTH_OUTPUT_DIR') ?: '/root';
 if (!is_dir($OUTPUT_DIR) || !is_writable($OUTPUT_DIR)) {
