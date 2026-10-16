@@ -24,3 +24,5 @@ jobs:
         run: php -l tests/regressao_fragmentos.php
       - name: Offline regression (no database)
         run: php tests/regressao_fragmentos.php
+      - name: Offline JSONL auditor self-test
+        run: python3 tests/auditar_jsonl_offline.py --self-test
