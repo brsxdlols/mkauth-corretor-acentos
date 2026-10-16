@@ -716,6 +716,14 @@ function fragmentos_recuperar($original, $max = 16)
     $result = reset($terminal); $new = $result['texto'];
     if (preg_match('/[\x{00C2}\x{00C3}](?=\z|[\s<])/u', $new)) return false;
     if ($new === $original || score_mojibake($new) !== 0 || preg_match('/[\x{0080}-\x{009F}\x{FFFD}\x{00AD}]/u', $new)) return false;
+    // Hardening experimental: score zero nao garante texto legivel.
+    // Filtro conservador: falsos positivos sao preservados, nunca aplicados.
+    // Estes marcadores foram observados em 491/508 candidatos da auditoria.
+    if (preg_match('/[\\x{00C3}\\x{00C2}\\x{00C6}]/u', $new) ||
+        strpos($new, "â€") !== false ||
+        strpos($new, "â‚") !== false ||
+        strpos($new, "ï¿½") !== false) return false;
+
     if (preg_replace('/[^\x00-\x7f]/', '', $new) !== preg_replace('/[^\x00-\x7f]/', '', $original)) return false;
     preg_match_all('/<[^>]*>/', $original, $a); preg_match_all('/<[^>]*>/', $new, $b);
     if ($a !== $b) return false;
