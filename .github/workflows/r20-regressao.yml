@@ -1,0 +1,26 @@
+name: R20 PHP regression (development)
+on:
+  push:
+    branches:
+      - hardening-perda-irreversivel-contratos
+  workflow_dispatch:
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: iconv, mbstring
+          coverage: none
+      - name: Shell syntax
+        run: bash -n instalar_mkauth_acento.sh
+      - name: PHP regression syntax
+        run: php -l tests/regressao_fragmentos.php
+      - name: Offline regression (no database)
+        run: php tests/regressao_fragmentos.php
